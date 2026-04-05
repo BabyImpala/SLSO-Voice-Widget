@@ -1,7 +1,8 @@
 Scriptname SLSO_SpellVoiceScript extends activemagiceffect
 
 SexLabFramework Property SexLab auto
-sslThreadController Property controller auto
+sslThreadModel Thread
+SoundCategory SexLabVoices
 
 String Property File auto
 Bool Property IsVictim auto
@@ -14,6 +15,7 @@ FormList Property SoundContainer auto
 Event OnEffectStart( Actor akTarget, Actor akCaster )
 	IsPlayer = akTarget == Game.GetPlayer()
 	File = "/SLSO/Config.json"
+	SexLabVoices = Game.GetFormFromFile(0x2CBBC, "SexLab.esm") as SoundCategory
 	if ((JsonUtil.GetIntValue(File, "sl_voice_player") != 0 && IsPlayer) || (JsonUtil.GetIntValue(File, "sl_voice_npc") != 0 && !IsPlayer))
 		SexLab = Quest.GetQuest("SexLabQuestFramework") as SexLabFramework
 		RegisterForModEvent("SLSO_Start_widget", "Start_widget")
@@ -26,11 +28,11 @@ EndEvent
 Event Start_widget(Int Widget_Id, Int Thread_Id)
 	UnregisterForModEvent("SLSO_Start_widget")
 
-	controller = SexLab.GetController(Thread_Id)
+	Thread = SexLab.GetThread(Thread_Id) as sslThreadModel
 	
-	IsVictim = controller.IsVictim(GetTargetActor())
-	IsSilent = controller.ActorAlias(GetTargetActor()).IsSilent()
-	IsFemale = controller.ActorAlias(GetTargetActor()).GetGender() == 1
+	IsVictim = Thread.GetSubmissive(GetTargetActor())
+	IsSilent = Thread.ActorAlias(GetTargetActor()).IsSilent()
+	IsFemale = (Sexlab.GetSex(GetTargetActor()) == 1 || Sexlab.GetSex(GetTargetActor()) == 2)
 
 	;check if female and setup voices according to mcm/json options
 	if IsFemale
@@ -62,6 +64,9 @@ Event Start_widget(Int Widget_Id, Int Thread_Id)
 		if Voice > 0
 			SoundContainer = SoundContainer.GetAt(Voice - 1) as formlist
 			SexLab.Log(" SLSO Setup() actor: " + GetTargetActor().GetDisplayName() + " Voice: " +Voice + " SoundContainer " + SoundContainer)
+			if JsonUtil.GetIntValue(File, "sl_voice_mutesexlab") != 0
+				SexLabVoices.Mute()
+			endif
 		else
 			SexLab.Log(" SLSO Setup() actor: " + GetTargetActor().GetDisplayName() + " Voice(0=disabled): " +Voice + " SoundContainer " + SoundContainer)
 		endif
@@ -75,25 +80,25 @@ Event Start_widget(Int Widget_Id, Int Thread_Id)
 EndEvent
 
 Event OnSexLabEnd(string EventName, string argString, Float argNum, form sender)
-	if controller == SexLab.GetController(argString as int)
+	if Thread == SexLab.GetThread(argString as int) as sslThreadModel
 		Remove()
 	endif
 EndEvent
 
 Event OnUpdate()
-	if controller.ActorAlias(GetTargetActor()).GetActorRef() != none
-		if controller.ActorAlias(GetTargetActor()).GetState() == "Animating"
+	if Thread.HasActor(GetTargetActor())
+		if Thread.ActorAlias(GetTargetActor()).GetState() == "Animating"
 			if !IsSilent && IsFemale
 				if Voice > 0 && SoundContainer != none
 					;SexLab.Log(" voice set " + GetTargetActor().GetDisplayName() + ", you should not see this after animation end")
 					
 					sound mySFX
-					Int RawFullEnjoyment = controller.ActorAlias(GetTargetActor()).GetFullEnjoyment()
-					Int FullEnjoyment = PapyrusUtil.ClampInt(RawFullEnjoyment/10, 0, 10) + 1
+					Int RawFullEnjoyment = Thread.GetEnjoyment(GetTargetActor())
+					Int FullEnjoyment = PapyrusUtil.ClampInt(RawFullEnjoyment/10, -10, 10) + 1
 						
 					if FullEnjoyment > 9																					;orgasm
 						mySFX = (SoundContainer.GetAt(1) As formlist).GetAt(0) As Sound
-					elseif IsVictim && FullEnjoyment < JsonUtil.GetIntValue(File, "sl_voice_painswitch")					;pain
+					elseif (IsVictim && FullEnjoyment < JsonUtil.GetIntValue(File, "sl_voice_painswitch")) || FullEnjoyment < 0 ;pain
 						mySFX = (SoundContainer.GetAt(2) As formlist).GetAt(0) As Sound
 					else																									;normal
 						if (SoundContainer.GetAt(0) As formlist).GetSize() != 10 || JsonUtil.GetIntValue(File, "sl_voice_enjoymentbased") != 1
@@ -103,12 +108,12 @@ Event OnUpdate()
 					endif
 					
 
-					;if !controller.ActorAlias(GetTargetActor()).IsCreature()
-					if Sexlab.Config.UseLipSync
+					;if !Thread.ActorAlias(GetTargetActor()).IsCreature()
+					if SexLabUtil.GetConfig().UseLipSync
 						sslBaseVoice.TransitUp(GetTargetActor(),0,50)
-						;controller.ActorAlias(GetTargetActor()).GetVoice().TransitUp(GetTargetActor(), 0, 50)
+						;Thread.ActorAlias(GetTargetActor()).GetVoice().TransitUp(GetTargetActor(), 0, 50)
 ;					else
-;						controller.ActorAlias(GetTargetActor()).GetVoice().LipSync(GetTargetActor(), PapyrusUtil.ClampInt(RawFullEnjoyment, 0, 100))
+;						Thread.ActorAlias(GetTargetActor()).GetVoice().LipSync(GetTargetActor(), PapyrusUtil.ClampInt(RawFullEnjoyment, 0, 100))
 					endif
 
 					if JsonUtil.GetIntValue(File, "sl_voice_playandwait") == 1
@@ -119,11 +124,11 @@ Event OnUpdate()
 						;SexLab.Log(" SLSO GAME() Play: " +GetTargetActor().GetDisplayName())
 					endif
 					
-					if Sexlab.Config.UseLipSync
+					if SexLabUtil.GetConfig().UseLipSync
 						sslBaseVoice.TransitDown(GetTargetActor(),0,50)
-						;controller.ActorAlias(GetTargetActor()).GetVoice().TransitDown(GetTargetActor(), 50, 0)
+						;Thread.ActorAlias(GetTargetActor()).GetVoice().TransitDown(GetTargetActor(), 50, 0)
 					endif
-					controller.ActorAlias(GetTargetActor()).RefreshExpression()
+					Thread.ActorAlias(GetTargetActor()).RefreshExpression()
 					RegisterForSingleUpdate(1)
 					return
 				elseif Voice != 0
@@ -132,6 +137,7 @@ Event OnUpdate()
 			endif
 		endif
 	endif
+	SexLabVoices.UnMute()
 	Remove()
 EndEvent
 
@@ -146,7 +152,6 @@ function Remove()
 	If GetTargetActor() != none
 		UnRegisterForUpdate()
 		UnregisterForAllModEvents()
-		UnregisterForAllKeys()
 		SLSO_MCM SLSO = Quest.GetQuest("SLSO") as SLSO_MCM
 		If GetTargetActor().HasSpell(SLSO.SLSO_SpellVoice)
 			GetTargetActor().RemoveSpell(SLSO.SLSO_SpellVoice)
