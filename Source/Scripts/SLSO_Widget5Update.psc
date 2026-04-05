@@ -3,7 +3,7 @@ Scriptname SLSO_Widget5Update Extends ReferenceAlias
 SLSO_WidgetCoreScript5 Property Widget Auto
 
 SexLabFramework SexLab
-sslThreadController controller
+sslThreadModel Thread
 
 String File
 String widgetid
@@ -29,8 +29,8 @@ Event Start_widget(Int Widget_Id, Int Thread_Id)
 		UnregisterForModEvent("SLSO_Start_widget")
 
 		SexLab = Quest.GetQuest("SexLabQuestFramework") as SexLabFramework
-		controller = SexLab.GetController(Thread_Id)
-		if controller.HasPlayer
+		Thread = SexLab.GetThread(Thread_Id) as sslThreadModel
+		if Thread.HasPlayer()
 			StartWidget()
 		else
 			StopWidget()
@@ -79,13 +79,13 @@ EndFunction
 Function UpdateWidgetPosition()
 	Actor ActorRef = self.GetActorRef() 
 	If ActorRef != none
-		;female
-		If controller.ActorAlias(ActorRef).GetGender() == 1
-			BaseColor = JsonUtil.StringListGet(File, "widgetcolors", 5) as int
+		;female/futa
+		If (Sexlab.GetSex(ActorRef) == 1 || Sexlab.GetSex(ActorRef) == 2)
+			BaseColor = JsonUtil.StringListGet(File, "widgetcolors", 7) as int
 			Gender = 1
 		;male
 		Else
-			BaseColor = JsonUtil.StringListGet(File, "widgetcolors", 4) as int
+			BaseColor = JsonUtil.StringListGet(File, "widgetcolors", 6) as int
 			Gender = 0
 		EndIf
 	Else
@@ -113,13 +113,13 @@ Function UpdateWidgetPosition()
 	Widget.LabelTextColor = JsonUtil.GetFloatValue(File, "widget_labelcolor", 16777215) as int
 	ActorName = self.GetActorRef().GetDisplayName()
 	if JsonUtil.GetIntValue(File, "widget_show_enjoymentmodifier") == 1
-		EnjoymentValue = "0.00%"
+		EnjoymentValue = "..."
 	else
 		EnjoymentValue = ""
 	endif
 	Widget.SetTexts(ActorName, EnjoymentValue)
 	LastTimeFlash = game.GetRealHoursPassed()
-	RegisterForSingleUpdate(1)
+	RegisterForSingleUpdate(0.5)
 EndFunction
 
 ;----------------------------------------------------------------------------
@@ -137,15 +137,16 @@ Event OnUpdate()
 	
 	Actor ActorRef = self.GetActorRef() 
 	If ActorRef != none
-		if controller.ActorAlias(ActorRef).GetActorRef() != none
-			if controller.ActorAlias(ActorRef).GetState() == "Animating"
+		if Thread.ActorAlias(ActorRef).GetActorRef() != none
+			if Thread.ActorAlias(ActorRef).GetState() == "Animating"
 				If JsonUtil.GetIntValue(File, "widget_enabled") == 1
-					UpdateWidget(ActorRef, controller.ActorAlias(ActorRef).GetFullEnjoyment() as float)
+					string DetectedInteractions = "(" + Thread.GetCurrentInteractionString(ActorRef) + ")"
+					If DetectedInteractions == "()"
+						DetectedInteractions = "..."
+					EndIf
+					UpdateWidget(ActorRef, Thread.GetEnjoyment(ActorRef) as float, DetectedInteractions)
 				EndIf
-				If JsonUtil.GetIntValue(File, "game_passive_enjoyment_reduction") == 1
-					controller.ActorAlias(ActorRef).BonusEnjoyment(self.GetActorRef(), -1)
-				EndIf
-				RegisterForSingleUpdate(1)
+				RegisterForSingleUpdate(1.0)
 			else
 				StopWidget()
 			endif
@@ -157,7 +158,7 @@ Event OnUpdate()
 	;StopWidget()
 EndEvent
 
-Function UpdateWidget(Actor akActor, Float Enjoyment)
+Function UpdateWidget(Actor akActor, Float Enjoyment, string DetectedInteractions)
 	If akActor == none
 		return
 	EndIf
@@ -165,23 +166,37 @@ Function UpdateWidget(Actor akActor, Float Enjoyment)
 		Game.EnablePlayerControls()
 	EndIf
 	if EnjoymentValue != ""
-		EnjoymentValue = "E:" + StringUtil.Substring(controller.ActorAlias(self.GetActorRef()).GetFullEnjoymentMod(), 0, 5) + "%"
+		;EnjoymentValue = "E:" + StringUtil.Substring(Thread.GetEnjoyment(self.GetActorRef()), 0, 5) + "%"
+		EnjoymentValue = DetectedInteractions
 	endif
 	Widget.SetTexts(ActorName, EnjoymentValue)
 	Enjoyment /= 100
-	If Enjoyment >= 0.75
-		Widget.SetMeterColors(BaseColor, JsonUtil.StringListGet(File, "widgetcolors", 1) as int)
-	ElseIf Enjoyment >= 0.50
-		Widget.SetMeterColors(BaseColor, JsonUtil.StringListGet(File, "widgetcolors", 2) as int)
-	ElseIf Enjoyment >= 0.25
-		Widget.SetMeterColors(BaseColor, JsonUtil.StringListGet(File, "widgetcolors", 3) as int)
-	Else
-		Widget.SetMeterColors(BaseColor, BaseColor)
+	If (Enjoyment >= 0.0 && Enjoyment <= 1.0)
+		If Enjoyment >= 0.75
+			Widget.SetMeterColors(BaseColor, JsonUtil.StringListGet(File, "widgetcolors", 1) as int)
+		ElseIf Enjoyment >= 0.50
+			Widget.SetMeterColors(BaseColor, JsonUtil.StringListGet(File, "widgetcolors", 2) as int)
+		ElseIf Enjoyment >= 0.25
+			Widget.SetMeterColors(BaseColor, JsonUtil.StringListGet(File, "widgetcolors", 3) as int)
+		Else
+			Widget.SetMeterColors(BaseColor, BaseColor)
+		EndIf
+		Widget.SetMeterPercent(Enjoyment*100)
 	EndIf
-	If Enjoyment > 1
-		Enjoyment = 1
+	If Enjoyment < 0.0
+		Widget.SetMeterColors(BaseColor, JsonUtil.StringListGet(File, "widgetcolors", 5) as int)
+		Widget.SetMeterPercent(Enjoyment * 100 * -1)
+		If JsonUtil.GetIntValue(File, "widget_show_painedgingtext") == 1
+			Widget.SetTexts(ActorName, "Pain: " + EnjoymentValue)
+		EndIf
 	EndIf
-	Widget.SetMeterPercent(Enjoyment*100)
+	If Enjoyment > 1.0
+		Widget.SetMeterColors(BaseColor, JsonUtil.StringListGet(File, "widgetcolors", 4) as int)
+		Widget.SetMeterPercent((Enjoyment - 1) *100, true)
+		If JsonUtil.GetIntValue(File, "widget_show_painedgingtext") == 1
+			Widget.SetTexts(ActorName, "Edging: " + EnjoymentValue)
+		EndIf
+	EndIf
 	If Enjoyment >= 0.90
 		GetCurrentHourOfDay()		;flash
 	EndIf
