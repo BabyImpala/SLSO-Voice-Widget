@@ -14,7 +14,6 @@
 	},
 	"int" : 
 	{
-		"hotkey_utility" : 42,
 		"hotkey_widget" : 48,
 		"sl_hot_voice_strength" : 90,
 		"sl_voice_enjoymentbased" : 1,

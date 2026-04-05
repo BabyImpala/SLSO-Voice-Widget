@@ -13,6 +13,7 @@ Float LastTimeFlash
 Int BaseColor = 0xFFFFFF	 	; white
 Int Gender = 0
 Bool Display_widget = true
+Bool WidgetVisible = false
 
 ;----------------------------------------------------------------------------
 ;Widget Setup
@@ -57,23 +58,40 @@ Event Stop_widget(Int Widget_Id)
 EndEvent
 
 Function StartWidget()
+	if ((JsonUtil.GetIntValue(File, "widget_player_only") == 1 && self.GetActorRef() == Game.Getplayer()) || JsonUtil.GetIntValue(File, "widget_player_only") != 1)
+		Display_widget = true
+	else
+		Display_widget = false
+		StopWidget()
+		return
+	endif
+	if (JsonUtil.StringListGet(File, widgetid, 0) != "on")
+		return
+	endif
 	UpdateWidgetPosition()
 EndFunction
 
 Function StopWidget()
 	UnRegisterForUpdate()
 	UnregisterForAllModEvents()
-	UnregisterForAllKeys()
 	HideWidget()
 	(self as ReferenceAlias).Clear()
 EndFunction
 
 Function ShowWidget()
 	Widget.Alpha = 100.0
+	WidgetVisible = true
+	If ((Display_widget == true) && (self.GetActorRef() == Game.Getplayer()))
+		; abMovement must be enabled via EPC else the widget won't show (DPC won't work)
+		; rest stays same as SexLabUtil.MOVEMENT_LOCK since ShowWidget() is for STATE_ANIMATING only
+		Game.EnablePlayerControls(abMovement=true, abFighting=false, abCamSwitch=false, abLooking=true,\
+			abSneaking=false, abMenu=true, abActivate=false, abJournalTabs=true, aiDisablePovType=0)
+	EndIf
 EndFunction
 
 Function HideWidget()
 	Widget.Alpha = 0.0
+	WidgetVisible = false
 EndFunction
 
 Function UpdateWidgetPosition()
@@ -93,11 +111,6 @@ Function UpdateWidgetPosition()
 	EndIf
 	Widget.BorderColor = JsonUtil.GetFloatValue(File, "widget_bordercolor", 0) as int
 	Widget.BorderWidth = 0
-	if ((JsonUtil.GetIntValue(File, "widget_player_only") == 1 && self.GetActorRef() == Game.Getplayer()) || JsonUtil.GetIntValue(File, "widget_player_only") != 1)
-		Display_widget = true
-	else
-		Display_widget = false
-	endif
 	;Widget.Width = JsonUtil.GetFloatValue(File, "widget_width")
 	;Widget.Height = JsonUtil.GetFloatValue(File, "widget_height")
 	Widget.X = JsonUtil.StringListGet(File, widgetid, 1) as Float
@@ -127,44 +140,29 @@ EndFunction
 ;----------------------------------------------------------------------------
 
 Event OnUpdate()
-	If JsonUtil.StringListGet(File, widgetid, 0) == "on"\
-	&& JsonUtil.GetIntValue(File, "widget_enabled") == 1\
-	&& Display_widget
-		ShowWidget()
-	Else
-		HideWidget()
-	EndIf
-	
-	Actor ActorRef = self.GetActorRef() 
-	If ActorRef != none
-		if Thread.ActorAlias(ActorRef).GetActorRef() != none
-			if Thread.ActorAlias(ActorRef).GetState() == "Animating"
-				If JsonUtil.GetIntValue(File, "widget_enabled") == 1
-					string DetectedInteractions = "(" + Thread.GetCurrentInteractionString(ActorRef) + ")"
-					If DetectedInteractions == "()"
-						DetectedInteractions = "..."
-					EndIf
-					UpdateWidget(ActorRef, Thread.GetEnjoyment(ActorRef) as float, DetectedInteractions)
-				EndIf
-				RegisterForSingleUpdate(1.0)
-			else
-				StopWidget()
-			endif
-		else
-			StopWidget()
-		endif
-	endif
-	;cant be like in SLSO_Game cuz widget is should be shown after mcm XY edit 
-	;StopWidget()
-EndEvent
-
-Function UpdateWidget(Actor akActor, Float Enjoyment, string DetectedInteractions)
-	If akActor == none
+	Actor ActorRef = self.GetActorRef()
+	If ((ActorRef == none) || (Thread.ActorAlias(ActorRef).GetActorRef() == none) || (Thread.ActorAlias(ActorRef).GetState() == "Empty"))
+		StopWidget()
 		return
 	EndIf
-	If Display_widget == true && akActor == Game.Getplayer()
-		Game.EnablePlayerControls()
+	If ((JsonUtil.GetIntValue(File, "widget_enabled") != 1) || (Thread.ActorAlias(ActorRef).GetState() == "Paused"))
+		If WidgetVisible
+			HideWidget()
+		EndIf
+	ElseIf (Thread.ActorAlias(ActorRef).GetState() == "Animating")
+		string DetectedInteractions = "(" + Thread.GetCurrentInteractionString(ActorRef) + ")"
+		If DetectedInteractions == "()"
+			DetectedInteractions = "..."
+		EndIf
+		If !WidgetVisible
+			ShowWidget()
+		EndIf
+		UpdateWidget(Thread.GetEnjoyment(ActorRef) as float, DetectedInteractions)
 	EndIf
+	RegisterForSingleUpdate(0.5)
+EndEvent
+
+Function UpdateWidget(Float Enjoyment, string DetectedInteractions)
 	if EnjoymentValue != ""
 		;EnjoymentValue = "E:" + StringUtil.Substring(Thread.GetEnjoyment(self.GetActorRef()), 0, 5) + "%"
 		EnjoymentValue = DetectedInteractions

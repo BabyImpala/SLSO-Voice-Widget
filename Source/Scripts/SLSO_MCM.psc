@@ -218,7 +218,6 @@ endState
 
 state hotkey_widget
 	event OnKeyMapChangeST(int newKeyCode, string conflictControl, string conflictName)
-		UnregisterForAllKeys()
 		bool continue = true
  
 		; Check for conflict
@@ -237,7 +236,6 @@ state hotkey_widget
 			JsonUtil.SetIntValue(File, "hotkey_widget", newKeyCode)
 			SetKeyMapOptionValueST(JsonUtil.GetIntValue(File, "hotkey_widget"))
 		endIf
-		RegisterForKey(JsonUtil.GetIntValue(File, "hotkey_widget"))
 	endEvent
 
 	event OnHighlightST()
