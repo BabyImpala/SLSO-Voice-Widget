@@ -1,8 +1,6 @@
 scriptname SLSO_PlayerAliasScript extends ReferenceAlias
 {SLSO_PlayerAliasScript script}
 
-int Player_orgasms_count
-int Player_bonusenjoyment
 String File
 
 ;=============================================================
@@ -28,8 +26,6 @@ function Maintenance()
 	self.RegisterForModEvent("SexLabOrgasmSeparate", "Orgasm")
 	self.RegisterForModEvent("AnimationStart", "OnSexLabStart")
 	self.RegisterForModEvent("AnimationEnd", "OnSexLabEnd")
-	self.RegisterForSingleUpdateGameTime(1)								;1 game hour
-	RegisterKey(JsonUtil.GetIntValue(File, "hotkey_widget"))
 	
 	Clear()
 	
@@ -44,7 +40,7 @@ function Maintenance()
 				JsonUtil.SetIntValue(File, "sl_voice_npc", 0)
 				return
 			endif
-		i = i + 1
+			i += 1
 		endwhile
 	endif
 	
@@ -55,11 +51,9 @@ function Maintenance()
 			if ((Game.GetFormFromFile(0x7935, "SLSO.esp") as formlist).GetAt(1) as formlist).GetAt(i) == none
 				((Game.GetFormFromFile(0x7935, "SLSO.esp") as formlist).GetAt(1) as formlist).Revert()
 				((Game.GetFormFromFile(0x7938, "SLSO.esp") as formlist).GetAt(1) as formlist).Revert()
-				;JsonUtil.SetIntValue(File, "sl_voice_player", 0)
-				;JsonUtil.SetIntValue(File, "sl_voice_npc", 0)
 				return
 			endif
-		i = i + 1
+			i += 1
 		endwhile
 	endif
 	
@@ -80,39 +74,23 @@ function Clear()
 	endwhile
 endFunction
 
-Event Orgasm(Form ActorRef, Int Thread)
-	if (ActorRef as actor) == Game.GetPlayer()
-		Player_orgasms_count = (self.GetOwningQuest() as SLSO_MCM).SexLab.GetController(Thread).ActorAlias(ActorRef as actor).GetOrgasmCount()
-		self.RegisterForSingleUpdateGameTime(1)
-	endif
-EndEvent
-
-Event OnUpdateGameTime()
-	;reset orgasms and enjoyment after 1 hour
-	Player_orgasms_count = 0
-	Player_bonusenjoyment = 0
-EndEvent
-
 ;----------------------------------------------------------------------------
 ;SexLab hooks
 ;----------------------------------------------------------------------------
 
 Event OnSexLabStart(string EventName, string argString, Float argNum, form sender)
-	sslThreadController controller = (self.GetOwningQuest() as SLSO_MCM).SexLab.GetController(argString as int)
+	RegisterKey(JsonUtil.GetIntValue(File, "hotkey_widget"))
+	SLSO_MCM SLSO = self.GetOwningQuest() as SLSO_MCM
+	sslThreadModel Thread = SLSO.SexLab.GetThread(argString as int) as sslThreadModel
+	Actor[] Positions = Thread.GetPositions()
 
 	;if thread has player, enable widgets
 	int i = 0
-	if controller.HasPlayer
-		while i < controller.ActorAlias.Length
-			if controller.ActorAlias[i].GetActorRef() != none
-				;add orgasms to player ince last animation if 1h hasnt passed
-				if controller.ActorAlias[i].GetActorRef() == Game.GetPlayer()
-					(controller.ActorAlias(Game.GetPlayer()) as sslActorAlias).SetOrgasmCount(Player_orgasms_count)
-				endif
-				
+	if Thread.HasPlayer()
+		while i < Positions.Length
+			if Positions[i] != none
 				;fill widget and game() alias
-				(self.GetOwningQuest().GetAlias(i+1) as ReferenceAlias).ForceRefTo(controller.ActorAlias[i].GetActorRef())
-				
+				(self.GetOwningQuest().GetAlias(i+1) as ReferenceAlias).ForceRefTo(Positions[i])
 				;start alias widget
 				(self.GetOwningQuest().GetAlias(i+1)).RegisterForModEvent("SLSO_Start_widget", "Start_widget")
 			endif
@@ -122,23 +100,15 @@ Event OnSexLabStart(string EventName, string argString, Float argNum, form sende
 	endif
 	
 	;add game, voice, animsync abilities and start everything
-	while i < controller.ActorAlias.Length
-		if controller.ActorAlias[i].GetActorRef() != none
-			;game, animation speed and voice abilities
+	while i < Positions.Length
+		if Positions[i] != none
 			;attemp to force remove abilities, that may not have finished, if animation fired up right after previous has ended
-			controller.ActorAlias[i].GetActorRef().RemoveSpell((self.GetOwningQuest() as SLSO_MCM).SLSO_SpellAnimSync)
-			controller.ActorAlias[i].GetActorRef().RemoveSpell((self.GetOwningQuest() as SLSO_MCM).SLSO_SpellVoice)
-			controller.ActorAlias[i].GetActorRef().RemoveSpell((self.GetOwningQuest() as SLSO_MCM).SLSO_SpellGame)
-			
+			Positions[i].RemoveSpell((self.GetOwningQuest() as SLSO_MCM).SLSO_SpellVoice)
 			;add fresh abilities
-			controller.ActorAlias[i].GetActorRef().AddSpell((self.GetOwningQuest() as SLSO_MCM).SLSO_SpellAnimSync, false)
-			controller.ActorAlias[i].GetActorRef().AddSpell((self.GetOwningQuest() as SLSO_MCM).SLSO_SpellVoice, false)
-			controller.ActorAlias[i].GetActorRef().AddSpell((self.GetOwningQuest() as SLSO_MCM).SLSO_SpellGame, false)
-			
+			Positions[i].AddSpell((self.GetOwningQuest() as SLSO_MCM).SLSO_SpellVoice, false)
 			;wait 1s for scripts and abilities setup and be ready for events
 			;there should be some sort of callback, but fuck that magic, waiting 1 sec is easier
 			utility.wait(1)
-			
 			;push event to start everything
 			int handle = ModEvent.Create("SLSO_start_widget")
 			if (handle)
@@ -152,16 +122,12 @@ Event OnSexLabStart(string EventName, string argString, Float argNum, form sende
 EndEvent
 
 Event OnSexLabEnd(string EventName, string argString, Float argNum, form sender)
-	sslThreadController controller = (self.GetOwningQuest() as SLSO_MCM).SexLab.GetController(argString as int)
-
-	if controller.HasPlayer
-		;clear player orgasms in 1h(for non separate orgasms option)
-		self.RegisterForSingleUpdateGameTime(1)
-		;clear alias widget, abilities
-		Clear()
+	UnregisterKey(JsonUtil.GetIntValue(File, "hotkey_widget"))
+	sslThreadModel Thread = (self.GetOwningQuest() as SLSO_MCM).SexLab.GetThread(argString as int) as sslThreadModel
+	if Thread.HasPlayer()
+		Clear() ;clear alias widget, abilities
 	endif
 EndEvent
-
 
 Function RegisterKey(int RKey = 0)
 	If (RKey != 0)
@@ -169,9 +135,15 @@ Function RegisterKey(int RKey = 0)
 	EndIf
 EndFunction
 
+Function UnregisterKey(int RKey = 0)
+	If (RKey != 0)
+		self.UnregisterForKey(RKey)
+	EndIf
+EndFunction
+
 Event OnKeyDown(int keyCode)
 	If !Utility.IsInMenuMode()
-		If JsonUtil.GetIntValue(File, "hotkey_widget") == keyCode && Input.IsKeyPressed(JsonUtil.GetIntValue(File, "hotkey_utility"))
+		If keyCode == JsonUtil.GetIntValue(File, "hotkey_widget")
 			If JsonUtil.GetIntValue(File, "widget_enabled") == 1
 				JsonUtil.SetIntValue(File, "widget_enabled", 0)
 				(self.GetOwningQuest().GetAlias(1) as SLSO_Widget1Update).HideWidget()
