@@ -43,8 +43,8 @@ string		_valueTextFont				= "$EverywhereFont"
 
 string		_textAlign					= "border"
 
-string		_iconSource					= "" ;"./skyui/skyui_icons_psychosteve.swf"
-string		_iconName					= "" ;"mag_conjuration"
+string		_iconSource					= "./skyui/icons_item_psychosteve.swf"
+string		_iconName					= "mag_conjuration"
 string		_iconAlign					= "left"
 
 string		_meterFillMode				= "right"
