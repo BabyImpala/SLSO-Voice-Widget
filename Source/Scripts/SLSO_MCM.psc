@@ -7,22 +7,22 @@ Spell property SLSO_SpellVoice auto
 Spell property SLSO_SpellGame auto
 
 String File
+String EnjConfigFile
 
 ;=============================================================
 ;INIT
 ;=============================================================
 
 event OnConfigInit()
-    ModName = "SL Separate Orgasms"
+    ModName = "SLSO Voice & Widget"
 	self.RefreshStrings()
 endEvent
 
 Function RefreshStrings()
-	Pages = new string[4]
+	Pages = new string[3]
 	Pages[0] = "$page1"
 	Pages[1] = "$page2"
 	Pages[2] = "$page3"
-	Pages[3] = "$page4"
 	
 	File = "/SLSO/Config.json"
 EndFunction
@@ -33,13 +33,11 @@ event OnPageReset(string page)
 	endif
 
 	if page == "$page1"
-		self.Page_Config()
+		self.Page_Sound_System()
 	elseif page == "$page2"
 		self.Page_Widget()
 	elseif page == "$page3"
 		self.Page_Widget_Colors()
-	elseif page == "$page4"
-		self.Page_Sound_System()
 	endif
 endEvent
 
@@ -49,11 +47,12 @@ endEvent
 
 function Page_Widget()
 	SetCursorFillMode(TOP_TO_BOTTOM)
+		AddKeyMapOptionST("hotkey_widget", "$hotkey_widget", JsonUtil.GetIntValue(File, "hotkey_widget"))
 		AddToggleOptionST("widget_player_only", "$widget_player_only", JsonUtil.GetIntValue(File, "widget_player_only"))
 		AddToggleOptionST("widget_show_enjoymentmodifier", "$widget_show_enjoymentmodifier", JsonUtil.GetIntValue(File, "widget_show_enjoymentmodifier"))
+		AddToggleOptionST("widget_show_painedgingtext", "$widget_show_painedgingtext", JsonUtil.GetIntValue(File, "widget_show_painedgingtext"))
 		AddSliderOptionST("LabelTextSize", "$LabelTextSize", JsonUtil.GetFloatValue(File, "widget_labeltextsize") as Int)
 		AddSliderOptionST("ValueTextSize", "$ValueTextSize", JsonUtil.GetFloatValue(File, "widget_valuetextsize") as Int)
-		AddEmptyOption()
 		
 		AddHeaderOption("$Widget_1")
 			AddTextOptionST("widget1_0", "$Enabled", JsonUtil.StringListGet(File, "widget1", 0))
@@ -69,6 +68,7 @@ function Page_Widget()
 
 	SetCursorPosition(1)
 		
+		AddEmptyOption()
 		AddHeaderOption("$Widget_3")
 			AddTextOptionST("widget3_0", "$Enabled", JsonUtil.StringListGet(File, "widget3", 0))
 			AddSliderOptionST("widget3_1", "$Position_X", JsonUtil.StringListGet(File, "widget3", 1) as Int)
@@ -95,9 +95,10 @@ function Page_Widget_Colors()
 			AddColorOptionST("widgetcolors_1", "$High", JsonUtil.StringListGet(File, "widgetcolors", 1) as int)
 			AddColorOptionST("widgetcolors_2", "$Moderate", JsonUtil.StringListGet(File, "widgetcolors", 2) as int)
 			AddColorOptionST("widgetcolors_3", "$Low", JsonUtil.StringListGet(File, "widgetcolors", 3) as int)
-			AddColorOptionST("widgetcolors_4", "$Base_Male", JsonUtil.StringListGet(File, "widgetcolors", 4) as int)
-			AddColorOptionST("widgetcolors_5", "$Base_Female", JsonUtil.StringListGet(File, "widgetcolors", 5) as int)
-		AddEmptyOption()
+			AddColorOptionST("widgetcolors_4", "$Edging", JsonUtil.StringListGet(File, "widgetcolors", 4) as int)
+			AddColorOptionST("widgetcolors_5", "$Pain", JsonUtil.StringListGet(File, "widgetcolors", 5) as int)
+			AddColorOptionST("widgetcolors_6", "$Base_Male", JsonUtil.StringListGet(File, "widgetcolors", 6) as int)
+			AddColorOptionST("widgetcolors_7", "$Base_Female", JsonUtil.StringListGet(File, "widgetcolors", 7) as int)
 
 	SetCursorPosition(1)
 		AddHeaderOption("$Widget_Settings_Header")
@@ -112,13 +113,13 @@ endfunction
 function Page_Sound_System()
 	SetCursorFillMode(TOP_TO_BOTTOM)
 		AddHeaderOption("$Sound_System_VoicePacks_Selection_Header")
+		AddToggleOptionST("sl_voice_mutesexlab", "$sl_voice_mutesexlab", JsonUtil.GetIntValue(File, "sl_voice_mutesexlab"))
 		AddToggleOptionST("sl_voice_enjoymentbased", "$sl_voice_enjoymentbased", JsonUtil.GetIntValue(File, "sl_voice_enjoymentbased"))
 		AddToggleOptionST("sl_voice_playandwait", "$sl_voice_playandwait", JsonUtil.GetIntValue(File, "sl_voice_playandwait"))
 		AddSliderOptionST("sl_voice_painswitch", "$sl_voice_painswitch", JsonUtil.GetIntValue(File, "sl_voice_painswitch") * 10)
 		AddSliderOptionST("sl_voice_player", "$PC_voice_pack", JsonUtil.GetIntValue(File, "sl_voice_player"))
 		AddSliderOptionST("sl_voice_npc", "$NPC_voice_pack", JsonUtil.GetIntValue(File, "sl_voice_npc"))
 	
-		AddEmptyOption()
 
 	SetCursorPosition(1)
 		AddHeaderOption("$Sound_System_Installed_VoicePacks_Header")
@@ -151,14 +152,6 @@ string function DectoHex(Int value)
 	
     return hex
 endfunction	
-
-;=============================================================
-;STATES, mess below
-;=============================================================
-
-;=============================================================
-;Config
-;=============================================================
 
 ;=============================================================
 ;Sliders
@@ -205,6 +198,17 @@ state widget_show_enjoymentmodifier
 			JsonUtil.SetIntValue(File, "widget_show_enjoymentmodifier", 1)
 		endif
 		SetToggleOptionValueST(JsonUtil.GetIntValue(File, "widget_show_enjoymentmodifier"))
+	endEvent
+endState
+
+state widget_show_painedgingtext
+	event OnSelectST()
+		if JsonUtil.GetIntValue(File, "widget_show_painedgingtext") == 1
+			JsonUtil.SetIntValue(File, "widget_show_painedgingtext", 0)
+		else
+			JsonUtil.SetIntValue(File, "widget_show_painedgingtext", 1)
+		endif
+		SetToggleOptionValueST(JsonUtil.GetIntValue(File, "widget_show_painedgingtext"))
 	endEvent
 endState
 
@@ -669,6 +673,28 @@ state widgetcolors_5
 	endEvent
 endState
 
+state widgetcolors_6
+	event OnColorOpenST()
+		SetColorDialogStartColor(JsonUtil.StringListGet(File, "widgetcolors", 6) as int)
+	endEvent
+
+	event OnColorAcceptST(int value)
+		JsonUtil.StringListSet(File, "widgetcolors", 6, value as string)
+		SetColorOptionValueST(JsonUtil.StringListGet(File, "widgetcolors", 6) as int)
+	endEvent
+endState
+
+state widgetcolors_7
+	event OnColorOpenST()
+		SetColorDialogStartColor(JsonUtil.StringListGet(File, "widgetcolors", 7) as int)
+	endEvent
+
+	event OnColorAcceptST(int value)
+		JsonUtil.StringListSet(File, "widgetcolors", 7, value as string)
+		SetColorOptionValueST(JsonUtil.StringListGet(File, "widgetcolors", 7) as int)
+	endEvent
+endState
+
 state LabelColor
 	event OnColorOpenST()
 		SetColorDialogStartColor(JsonUtil.GetFloatValue(File, "widget_labelcolor", 16777215) as int)
@@ -694,6 +720,21 @@ endState
 ;=============================================================
 ;Sound System
 ;=============================================================
+
+state sl_voice_mutesexlab
+	event OnSelectST()
+		if JsonUtil.GetIntValue(File, "sl_voice_mutesexlab") == 1
+			JsonUtil.SetIntValue(File, "sl_voice_mutesexlab", 0)
+		else
+			JsonUtil.SetIntValue(File, "sl_voice_mutesexlab", 1)
+		endif
+		SetToggleOptionValueST(JsonUtil.GetIntValue(File, "sl_voice_mutesexlab"))
+	endEvent
+	
+	event OnHighlightST()
+		SetInfoText("$sl_voice_mutesexlab_description")
+	endEvent
+endState
 
 state sl_voice_enjoymentbased
 	event OnSelectST()
