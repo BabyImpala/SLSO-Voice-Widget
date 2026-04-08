@@ -66,6 +66,7 @@ Function StartWidget()
 		return
 	endif
 	if (JsonUtil.StringListGet(File, widgetid, 0) != "on")
+		StopWidget()
 		return
 	endif
 	UpdateWidgetPosition()
